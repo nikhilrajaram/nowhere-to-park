@@ -1,7 +1,7 @@
-name = "parking-map-worker"
+name = "nowhere-to-park-worker"
 main = "index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-ALLOWED_ORIGIN = "TODO"
+ALLOWED_ORIGIN = "https://nowhere-to-park.pages.dev/"
