@@ -4,4 +4,4 @@ compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-ALLOWED_ORIGIN = "https://nowhere-to-park.pages.dev/"
+ALLOWED_ORIGIN = "https://nowhere-to-park.pages.dev"
