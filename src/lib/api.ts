@@ -17,7 +17,8 @@ export async function fetchCityData(slug: string, signal?: AbortSignal): Promise
         return await cdnResponse.json();
       }
 
-      if (cdnResponse.status !== 404) {
+      // cloudfront 403s for missing files
+      if (cdnResponse.status !== 404 && cdnResponse.status !== 403) {
         console.warn(`CDN returned ${cdnResponse.status} for ${slug}`);
       }
     } catch (err) {
@@ -68,7 +69,8 @@ async function pollCityData(
         return await response.json();
       }
 
-      if (response.status !== 404) {
+      // CDN may return 403 or 404 for missing files depending on configuration
+      if (response.status !== 404 && response.status !== 403) {
         throw new Error(`Unexpected status: ${response.status}`);
       }
     } catch (err) {
