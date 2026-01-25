@@ -60,7 +60,7 @@ export default function CitySearch({ onCitySelect }: CitySearchProps) {
     <div className="overflow-hidden rounded-lg bg-white/95 shadow-lg backdrop-blur-sm">
       <input
         type="text"
-        className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:text-gray-400"
+        className="w-full bg-transparent px-3 py-2 text-base outline-none placeholder:text-gray-400"
         placeholder="Search city..."
         value={query}
         onChange={handleInputChange}
