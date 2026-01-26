@@ -9,20 +9,22 @@ interface CitySearchProps {
 
 const fuseOptions = {
   keys: ['name', 'state'],
-  threshold: 0.3,
+  threshold: 0.2,
   includeScore: true,
   shouldSort: true,
 };
+
+const sortedCities = (cities as City[]).sort((a, b) => b.population - a.population);
 
 export default function CitySearch({ onCitySelect }: CitySearchProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
-  const fuse = useMemo(() => new Fuse(cities as City[], fuseOptions), []);
+  const fuse = useMemo(() => new Fuse(sortedCities, fuseOptions), []);
 
   const results = useMemo(() => {
     if (!query.trim()) {
-      return (cities as City[]).sort((a, b) => b.population - a.population);
+      return sortedCities.sort((a, b) => b.population - a.population);
     }
     return fuse.search(query).map((result) => result.item);
   }, [fuse, query]);
