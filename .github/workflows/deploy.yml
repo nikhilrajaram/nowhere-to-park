@@ -33,7 +33,6 @@ jobs:
       - name: Build
         run: pnpm run build
         env:
-          VITE_CDN_URL: ${{ vars.CDN_URL }}
           VITE_WORKER_URL: ${{ vars.WORKER_URL }}
           VITE_MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
 

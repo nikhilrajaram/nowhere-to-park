@@ -5,3 +5,4 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ALLOWED_ORIGIN = "https://nowhere-to-park.pages.dev"
+PMTILE_FILENAME = "parking.pmtiles"
