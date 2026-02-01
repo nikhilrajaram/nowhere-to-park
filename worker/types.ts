@@ -6,6 +6,7 @@ export type Env = {
   S3_BUCKET_NAME: string;
   S3_REGION: string;
   ALLOWED_ORIGIN: string;
+  PMTILE_FILENAME: string;
 };
 
 export type CityData = {

@@ -21,3 +21,4 @@ pnpm-debug.log*
 *.tmp
 *.temp
 .cache/
+data-pipeline/data/parking.pmtiles

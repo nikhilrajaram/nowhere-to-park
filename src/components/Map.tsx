@@ -1,116 +1,71 @@
 import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapContext, STYLE_DARK, STYLE_SATELLITE } from '../context/MapContext';
 import { useMap } from '../hooks/useMap';
-import type { City, CityData } from '../types';
+import type { City } from '../types';
 import MapToggle from './MapToggle';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 interface MapProps {
-  cityData: CityData | null;
   selectedCity: City | null;
 }
 
-const PARKING_SOURCE_ID = 'parking-data';
-const PARKING_LAYER_ID = 'parking-layer';
-const BOUNDARY_SOURCE_ID = 'boundary-data';
-const BOUNDARY_LAYER_ID = 'boundary-layer';
+const PMTILES_SOURCE_ID = 'parking-pmtiles';
+const PMTILES_LAYER_ID = 'parking-pmtiles-layer';
 
-// TODO: add legend
-function MapView({ cityData, selectedCity }: MapProps) {
+const WORKER_URL = import.meta.env.VITE_WORKER_URL.replace(/\/$/, '');
+const MVT_TILES_URL = `${WORKER_URL}/tiles/{z}/{x}/{y}.mvt`;
+
+function MapView({ selectedCity }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  // maintain internal mapLoaded state to avoid race conditions
 
   const { mapStyle } = useMap();
 
   /**
-   * Set parking and city boundary sources data
-   */
-  const updateSources = useCallback((data: CityData | null) => {
-    if (!map.current) {
-      return;
-    }
-
-    const parkingSource = map.current.getSource<mapboxgl.GeoJSONSource>(PARKING_SOURCE_ID);
-    const boundarySource = map.current.getSource<mapboxgl.GeoJSONSource>(BOUNDARY_SOURCE_ID);
-
-    if (parkingSource && boundarySource) {
-      if (data) {
-        parkingSource.setData(data.parking);
-        boundarySource.setData({
-          type: 'FeatureCollection',
-          features: [data.boundary],
-        });
-      } else {
-        parkingSource.setData({ type: 'FeatureCollection', features: [] });
-        boundarySource.setData({ type: 'FeatureCollection', features: [] });
-      }
-    }
-  }, []);
-
-  /**
-   * Ensure map layers and reset data
+   * Ensure map layers
    */
   const onStyleLoad = useCallback(() => {
     if (!map.current) {
       return;
     }
 
-    if (!map.current.getSource(PARKING_SOURCE_ID)) {
-      map.current.addSource(PARKING_SOURCE_ID, {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      });
-    }
-    if (!map.current.getSource(BOUNDARY_SOURCE_ID)) {
-      map.current.addSource(BOUNDARY_SOURCE_ID, {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
+    if (!map.current.getSource(PMTILES_SOURCE_ID)) {
+      map.current.addSource(PMTILES_SOURCE_ID, {
+        type: 'vector',
+        tiles: [MVT_TILES_URL],
+        minzoom: 0,
+        maxzoom: 13, // data limit (tippecanoe generated up to z13). Mapbox will overzoom beyond this.
       });
     }
 
-    if (!map.current.getLayer(BOUNDARY_LAYER_ID)) {
+    if (!map.current.getLayer(PMTILES_LAYER_ID)) {
       map.current.addLayer({
-        id: BOUNDARY_LAYER_ID,
-        type: 'line',
-        source: BOUNDARY_SOURCE_ID,
-        paint: {
-          'line-color': '#c9c9c9',
-          'line-width': 1,
-          'line-opacity': 0.8,
-          'line-dasharray': [2, 2],
-        },
-      });
-    }
-
-    if (!map.current.getLayer(PARKING_LAYER_ID)) {
-      map.current.addLayer({
-        id: PARKING_LAYER_ID,
+        id: PMTILES_LAYER_ID,
+        source: PMTILES_SOURCE_ID,
+        'source-layer': 'parking', // must match the layer name in tippecanoe (-l parking)
         type: 'fill',
-        source: PARKING_SOURCE_ID,
         paint: {
           'fill-color': '#fbbf24',
-          'fill-opacity': 0.7,
+          'fill-opacity': 0.5,
         },
       });
-    }
 
-    if (!map.current.getLayer(`${PARKING_LAYER_ID}-outline`)) {
       map.current.addLayer({
-        id: `${PARKING_LAYER_ID}-outline`,
+        id: `${PMTILES_LAYER_ID}-outline`,
+        source: PMTILES_SOURCE_ID,
+        'source-layer': 'parking',
         type: 'line',
-        source: PARKING_SOURCE_ID,
         paint: {
           'line-color': '#d97706',
-          'line-width': 1,
+          'line-width': 0.5,
+          'line-opacity': 0.5,
         },
       });
     }
-
-    updateSources(cityData);
-  }, [cityData, updateSources]);
+  }, []);
 
   // base map load effect
   useEffect(() => {
@@ -121,7 +76,7 @@ function MapView({ cityData, selectedCity }: MapProps) {
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: mapStyle || STYLE_DARK,
-      center: [-98.5795, 39.8283],
+      center: [-98.5795, 39.8283], // center of USA
       zoom: 3,
     });
 
@@ -131,10 +86,7 @@ function MapView({ cityData, selectedCity }: MapProps) {
       map.current?.remove();
       map.current = null;
     };
-    // intentionally excluding `mapStyle` to avoid re-initialization and drive
-    // style changes via separate effect
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // attach style load handler
   useEffect(() => {
@@ -161,14 +113,7 @@ function MapView({ cityData, selectedCity }: MapProps) {
     }
   }, [mapStyle]);
 
-  useEffect(() => {
-    if (!map.current) {
-      return;
-    }
-    updateSources(cityData);
-  }, [cityData, updateSources, map]);
-
-  // selected city change effect
+  // selected city change effect (fly to city)
   useEffect(() => {
     if (!map.current || !selectedCity) {
       return;
@@ -182,7 +127,7 @@ function MapView({ cityData, selectedCity }: MapProps) {
       ],
       {
         padding: 50,
-        duration: 1000,
+        duration: 2000,
       }
     );
   }, [selectedCity]);
