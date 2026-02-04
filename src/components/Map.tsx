@@ -5,6 +5,12 @@ import { MapContext, STYLE_DARK, STYLE_SATELLITE } from '../context/MapContext';
 import { useMap } from '../hooks/useMap';
 import type { City } from '../types';
 import MapToggle from './MapToggle';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from './ui/context-menu';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -21,13 +27,6 @@ const MVT_TILES_URL = `${WORKER_URL}/tiles/{z}/{x}/{y}.mvt`;
 function MapView({ selectedCity }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    lat: number;
-    lng: number;
-    zoom: number;
-  } | null>(null);
 
   const { mapStyle } = useMap();
 
@@ -112,6 +111,7 @@ function MapView({ selectedCity }: MapProps) {
       style: mapStyle || STYLE_DARK,
       center: initialCenter,
       zoom: initialZoom,
+      preserveDrawingBuffer: true,
     });
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
@@ -121,24 +121,21 @@ function MapView({ selectedCity }: MapProps) {
       onStyleLoad();
     });
 
-    // context menu handler
+    // forward Mapbox context menu events to Radix UI
     map.current.on('contextmenu', (e) => {
-      if (!map.current) return;
-      const { lat, lng } = map.current.getCenter();
-      const zoom = map.current.getZoom();
-
-      setContextMenu({
-        x: e.point.x,
-        y: e.point.y,
-        lat,
-        lng,
-        zoom,
-      });
+      const { originalEvent } = e;
+      if (mapContainer.current) {
+        const newEvent = new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: originalEvent.clientX,
+          clientY: originalEvent.clientY,
+        });
+        // dispatch to the container so it bubbles up to the trigger
+        mapContainer.current.dispatchEvent(newEvent);
+      }
     });
-
-    // close context menu on interaction
-    map.current.on('click', () => setContextMenu(null));
-    map.current.on('movestart', () => setContextMenu(null));
 
     return () => {
       console.log('Map: Removing map instance.');
@@ -192,10 +189,11 @@ function MapView({ selectedCity }: MapProps) {
   }, [selectedCity]);
 
   const handleShare = async () => {
-    if (!contextMenu) {
+    if (!map.current) {
       return;
     }
-    const { lat, lng, zoom } = contextMenu;
+    const { lat, lng } = map.current.getCenter();
+    const zoom = map.current.getZoom();
     const url = new URL(window.location.href);
     url.searchParams.set('lat', lat.toFixed(6));
     url.searchParams.set('lng', lng.toFixed(6));
@@ -209,7 +207,6 @@ function MapView({ selectedCity }: MapProps) {
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-        setContextMenu(null);
       } catch (err) {
         console.warn('Share canceled or failed:', err);
       }
@@ -217,27 +214,45 @@ function MapView({ selectedCity }: MapProps) {
       navigator.clipboard
         .writeText(url.toString())
         .catch((err: unknown) => console.error('Failed to copy link:', err));
-      setContextMenu(null);
     }
   };
 
+  const handleScreenshot = () => {
+    if (!map.current) {
+      return;
+    }
+    const canvas = map.current.getCanvas();
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'nowhere-to-park-screenshot.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="relative h-full w-full">
-      <div ref={mapContainer} className="h-full w-full" />
-      {contextMenu && (
-        <div
-          className="absolute z-50 overflow-hidden rounded-lg border border-white/10 bg-black/30 p-1.5 text-white shadow-2xl backdrop-blur-md select-none"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          <button
-            className="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-white/10 active:bg-white/20"
-            onClick={handleShare}
-          >
-            {'share' in navigator ? 'Share view' : 'Copy shareable link'}
-          </button>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div className="relative h-full w-full">
+          <div ref={mapContainer} className="h-full w-full" />
         </div>
-      )}
-    </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="border-white/10 bg-black/60 text-white backdrop-blur-md">
+        <ContextMenuItem
+          onSelect={handleShare}
+          className="cursor-pointer focus:bg-white/10 focus:text-white"
+        >
+          {'share' in navigator ? 'Share link' : 'Copy shareable link'}
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={handleScreenshot}
+          className="cursor-pointer focus:bg-white/10 focus:text-white"
+        >
+          Save as image
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
