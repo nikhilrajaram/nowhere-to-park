@@ -1,6 +1,6 @@
-import './polyfills';
 import { PMTiles } from 'pmtiles';
 import { S3Source } from './pmtiles-source';
+import './polyfills';
 import { Env } from './types';
 
 // cache PMTiles instances (reused across requests in the same isolate)

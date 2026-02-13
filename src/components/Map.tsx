@@ -2,6 +2,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapContext, STYLE_DARK, STYLE_SATELLITE } from '../context/MapContext';
+import { useIsMobile } from '../hooks/use-mobile';
 import { useMap } from '../hooks/useMap';
 import type { City } from '../types';
 import MapToggle from './MapToggle';
@@ -9,6 +10,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuShortcut,
   ContextMenuTrigger,
 } from './ui/context-menu';
 
@@ -27,6 +29,7 @@ const MVT_TILES_URL = `${WORKER_URL}/tiles/{z}/{x}/{y}.mvt`;
 function MapView({ selectedCity }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const isMobile = useIsMobile();
 
   const { mapStyle } = useMap();
 
@@ -188,7 +191,7 @@ function MapView({ selectedCity }: MapProps) {
     );
   }, [selectedCity]);
 
-  const handleShare = async () => {
+  const handleShare = useCallback(async () => {
     if (!map.current) {
       return;
     }
@@ -199,25 +202,32 @@ function MapView({ selectedCity }: MapProps) {
     url.searchParams.set('lng', lng.toFixed(6));
     url.searchParams.set('zoom', zoom.toFixed(2));
 
+    const shareUrl = url.toString();
     const shareData = {
       title: 'Nowhere to Park',
-      url: url.toString(),
+      url: shareUrl,
     };
 
     if (navigator.share) {
       try {
         await navigator.share(shareData);
+        return;
       } catch (err) {
         console.warn('Share canceled or failed:', err);
       }
-    } else {
-      navigator.clipboard
-        .writeText(url.toString())
-        .catch((err: unknown) => console.error('Failed to copy link:', err));
     }
-  };
 
-  const handleScreenshot = () => {
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        return;
+      } catch (err) {
+        console.error('Failed to copy link using navigator.clipboard:', err);
+      }
+    }
+  }, []);
+
+  const handleScreenshot = useCallback(() => {
     if (!map.current) {
       return;
     }
@@ -229,7 +239,22 @@ function MapView({ selectedCity }: MapProps) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      if (isCmdOrCtrl && e.key === 'c') {
+        handleShare();
+      } else if (isCmdOrCtrl && e.key === 's') {
+        e.preventDefault();
+        handleScreenshot();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleShare, handleScreenshot]);
 
   return (
     <ContextMenu>
@@ -238,18 +263,22 @@ function MapView({ selectedCity }: MapProps) {
           <div ref={mapContainer} className="h-full w-full" />
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="border-white/10 bg-black/60 text-white backdrop-blur-md">
+      <ContextMenuContent
+        className={`${isMobile ? 'w-32' : 'w-64'} border-white/10 bg-black/60 text-white backdrop-blur-md`}
+      >
         <ContextMenuItem
           onSelect={handleShare}
           className="cursor-pointer focus:bg-white/10 focus:text-white"
         >
           {'share' in navigator ? 'Share link' : 'Copy shareable link'}
+          {!isMobile && <ContextMenuShortcut>⌘C</ContextMenuShortcut>}
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={handleScreenshot}
           className="cursor-pointer focus:bg-white/10 focus:text-white"
         >
           Save as image
+          {!isMobile && <ContextMenuShortcut>⌘S</ContextMenuShortcut>}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
