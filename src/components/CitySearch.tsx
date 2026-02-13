@@ -87,7 +87,7 @@ export default function CitySearch({ onCitySelect }: CitySearchProps) {
       <input
         type="text"
         className="w-full bg-transparent px-3 py-2 text-base outline-none placeholder:text-gray-400"
-        placeholder="Search places..."
+        placeholder="Search cities..."
         value={query}
         onChange={handleInputChange}
         onFocus={handleInputFocus}

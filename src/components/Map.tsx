@@ -2,9 +2,17 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapContext, STYLE_DARK, STYLE_SATELLITE } from '../context/MapContext';
+import { useIsMobile } from '../hooks/use-mobile';
 import { useMap } from '../hooks/useMap';
 import type { City } from '../types';
 import MapToggle from './MapToggle';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from './ui/context-menu';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -21,6 +29,7 @@ const MVT_TILES_URL = `${WORKER_URL}/tiles/{z}/{x}/{y}.mvt`;
 function MapView({ selectedCity }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const isMobile = useIsMobile();
 
   const { mapStyle } = useMap();
 
@@ -83,18 +92,29 @@ function MapView({ selectedCity }: MapProps) {
     }
   }, []);
 
-  // base map load effect
   useEffect(() => {
     if (!mapContainer.current || map.current) {
       return;
     }
 
     console.log('Map: Initializing Mapbox GL...');
+
+    // parse URL params for initial view
+    const params = new URLSearchParams(window.location.search);
+    const latParam = parseFloat(params.get('lat') || '');
+    const lngParam = parseFloat(params.get('lng') || '');
+    const zoomParam = parseFloat(params.get('zoom') || '');
+
+    const initialCenter: [number, number] =
+      !isNaN(latParam) && !isNaN(lngParam) ? [lngParam, latParam] : [-98.5795, 39.8283]; // center of USA
+    const initialZoom = !isNaN(zoomParam) ? zoomParam : 3;
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: mapStyle || STYLE_DARK,
-      center: [-98.5795, 39.8283], // center of USA
-      zoom: 3,
+      center: initialCenter,
+      zoom: initialZoom,
+      preserveDrawingBuffer: true,
     });
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
@@ -102,6 +122,22 @@ function MapView({ selectedCity }: MapProps) {
     map.current.on('load', () => {
       console.log('Map: load event fired.');
       onStyleLoad();
+    });
+
+    // forward Mapbox context menu events to Radix UI
+    map.current.on('contextmenu', (e) => {
+      const { originalEvent } = e;
+      if (mapContainer.current) {
+        const newEvent = new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: originalEvent.clientX,
+          clientY: originalEvent.clientY,
+        });
+        // dispatch to the container so it bubbles up to the trigger
+        mapContainer.current.dispatchEvent(newEvent);
+      }
     });
 
     return () => {
@@ -155,7 +191,98 @@ function MapView({ selectedCity }: MapProps) {
     );
   }, [selectedCity]);
 
-  return <div ref={mapContainer} className="h-full w-full" />;
+  const handleShare = useCallback(async () => {
+    if (!map.current) {
+      return;
+    }
+    const { lat, lng } = map.current.getCenter();
+    const zoom = map.current.getZoom();
+    const url = new URL(window.location.href);
+    url.searchParams.set('lat', lat.toFixed(6));
+    url.searchParams.set('lng', lng.toFixed(6));
+    url.searchParams.set('zoom', zoom.toFixed(2));
+
+    const shareUrl = url.toString();
+    const shareData = {
+      title: 'Nowhere to Park',
+      url: shareUrl,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        console.warn('Share canceled or failed:', err);
+      }
+    }
+
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        return;
+      } catch (err) {
+        console.error('Failed to copy link using navigator.clipboard:', err);
+      }
+    }
+  }, []);
+
+  const handleScreenshot = useCallback(() => {
+    if (!map.current) {
+      return;
+    }
+    const canvas = map.current.getCanvas();
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'nowhere-to-park-screenshot.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      if (isCmdOrCtrl && e.key === 'c') {
+        handleShare();
+      } else if (isCmdOrCtrl && e.key === 's') {
+        e.preventDefault();
+        handleScreenshot();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleShare, handleScreenshot]);
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div className="relative h-full w-full">
+          <div ref={mapContainer} className="h-full w-full" />
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent
+        className={`${isMobile ? 'w-32' : 'w-64'} border-white/10 bg-black/60 text-white backdrop-blur-md`}
+      >
+        <ContextMenuItem
+          onSelect={handleShare}
+          className="cursor-pointer focus:bg-white/10 focus:text-white"
+        >
+          {'share' in navigator ? 'Share link' : 'Copy shareable link'}
+          {!isMobile && <ContextMenuShortcut>⌘C</ContextMenuShortcut>}
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={handleScreenshot}
+          className="cursor-pointer focus:bg-white/10 focus:text-white"
+        >
+          Save as image
+          {!isMobile && <ContextMenuShortcut>⌘S</ContextMenuShortcut>}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }
 
 export default function Map(props: MapProps) {
