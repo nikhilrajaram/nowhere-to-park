@@ -19,8 +19,11 @@ async function getPMTilesInstance(env: Env, key: string): Promise<PMTiles> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const allowedOrigins = env.ALLOWED_ORIGIN.split(',').map((o) => o.trim());
+    const requestOrigin = request.headers.get('Origin') ?? '';
+    const origin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
     const corsHeaders = {
-      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN,
+      'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
       'Access-Control-Allow-Headers': 'Range, If-None-Match',
       'Access-Control-Expose-Headers': 'Content-Length, Content-Range, ETag',

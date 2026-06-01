@@ -22,3 +22,7 @@ pnpm-debug.log*
 *.temp
 .cache/
 data-pipeline/data/parking.pmtiles
+data-pipeline/data/source.osm.pbf
+data-pipeline/data/us-parking.pmtiles
+
+.claude

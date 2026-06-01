@@ -40,7 +40,14 @@ export class S3Source implements Source {
     const byteArray = await response.Body.transformToByteArray();
 
     return {
-      data: byteArray.buffer as ArrayBuffer,
+      // transformToByteArray() may return a Uint8Array that is a view into a larger pooled
+      // ArrayBuffer. Passing byteArray.buffer directly would give PMTiles the entire buffer with
+      // extraneous bytes before/after the payload. slice() produces a standalone ArrayBuffer starting
+      // at offset 0 that contains exactly the bytes belonging to this range response.
+      data: byteArray.buffer.slice(
+        byteArray.byteOffset,
+        byteArray.byteOffset + byteArray.byteLength
+      ) as ArrayBuffer,
       etag: response.ETag,
       cacheControl: response.CacheControl,
     };
