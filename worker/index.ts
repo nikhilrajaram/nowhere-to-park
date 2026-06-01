@@ -21,7 +21,10 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const allowedOrigins = env.ALLOWED_ORIGIN.split(',').map((o) => o.trim());
     const requestOrigin = request.headers.get('Origin') ?? '';
-    const origin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
+    // also allow any Cloudflare Pages preview deployment (*.pages.dev subdomains)
+    const isPagesPreview = /^https:\/\/[^.]+\.nowhere-to-park\.pages\.dev$/.test(requestOrigin);
+    const origin =
+      allowedOrigins.includes(requestOrigin) || isPagesPreview ? requestOrigin : allowedOrigins[0];
     const corsHeaders = {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
