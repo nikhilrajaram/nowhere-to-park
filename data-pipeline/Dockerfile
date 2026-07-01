@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
   libsqlite3-dev \
   zlib1g-dev \
   osmium-tool \
+  jq \
   curl \
   ca-certificates \
   && rm -rf /var/lib/apt/lists/*
