@@ -1,18 +1,19 @@
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MapContext, STYLE_DARK, STYLE_SATELLITE } from '../context/MapContext';
-import { useIsMobile } from '../hooks/use-mobile';
-import { useMap } from '../hooks/useMap';
-import type { City } from '../types';
-import MapToggle from './MapToggle';
+
+import MapToggle from '@/components/MapToggle';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuShortcut,
   ContextMenuTrigger,
-} from './ui/context-menu';
+} from '@/components/ui/ContextMenu';
+import { MapContext, STYLE_DARK, STYLE_SATELLITE } from '@/context/MapContext';
+import { useMap } from '@/hooks/useMap';
+import { useIsMobile } from '@/hooks/useMobile';
+import type { City } from '@/types';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 

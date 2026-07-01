@@ -1,4 +1,4 @@
-import { useMap } from '../hooks/useMap';
+import { useMap } from '@/hooks/useMap';
 
 export default function MapToggle() {
   const { isSatellite, toggleMapStyle } = useMap();

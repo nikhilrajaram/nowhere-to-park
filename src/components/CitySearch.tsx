@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { City } from '../types';
+
+import type { City } from '@/types';
 
 interface CitySearchProps {
   onCitySelect: (city: City) => void;
