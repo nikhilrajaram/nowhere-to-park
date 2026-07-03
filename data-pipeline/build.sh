@@ -45,6 +45,9 @@ fi
 #   parking=shoulder            — parking on the road shoulder
 #   access=underground          — underground structures are not visible surface land
 #   location=rooftop            — rooftop parking shares a footprint with the building below
+# TODO: audit exclusions
+# occasionally result in false negatives ex. https://www.openstreetmap.org/way/1359263443
+
 echo "Filtering for parking data..."
 osmium tags-filter "$CACHE_FILE" \
     "amenity=parking,motorcycle_parking" \
