@@ -4,9 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n web,worker -c cyan,magenta \"pnpm run dev:web\" \"pnpm run dev:worker\"",
+    "dev": "sh scripts/dev.sh",
     "dev:web": "vite",
     "dev:worker": "pnpm --dir worker run dev",
+    "infra:up": "docker compose up -d --wait",
+    "infra:seed": "docker compose run --rm seed-data",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write .",

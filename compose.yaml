@@ -1,0 +1,51 @@
+# MinIO infra for running the worker locally against data in data-pipeline/data
+name: nowhere-to-park
+
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BROWSER: 'off'
+    ports:
+      - '9000' # S3 API
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # create the bucket and seed it with local data
+  seed-data:
+    image: minio/mc:latest
+    profiles: ['seed']
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-nowhere-to-park}
+      PMTILE_FILENAME: ${PMTILE_FILENAME:-parking.pmtiles}
+    volumes:
+      - ./data-pipeline/data:/seed:ro
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "local/$$S3_BUCKET_NAME"
+        if [ ! -f "/seed/$$PMTILE_FILENAME" ]; then
+          echo "ERROR: /seed/$$PMTILE_FILENAME not found — run the data-pipeline to produce it, then re-run 'pnpm infra:up'" >&2
+          exit 1
+        fi
+        mc cp "/seed/$$PMTILE_FILENAME" "local/$$S3_BUCKET_NAME/$$PMTILE_FILENAME"
+        echo "seeded $$PMTILE_FILENAME into bucket $$S3_BUCKET_NAME"
+
+volumes:
+  minio-data:

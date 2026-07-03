@@ -7,6 +7,12 @@ export type Env = {
   S3_REGION: string;
   ALLOWED_ORIGIN: string;
   PMTILE_FILENAME: string;
+  /**
+   * Used in local dev to point the S3 client to the MinIO container (see `compose.yaml`)
+   * that points to data on the local filesystem
+   * Provided by `dev.sh` for local dev
+   */
+  AWS_ENDPOINT_URL_S3?: string;
 };
 
 export type CityData = {

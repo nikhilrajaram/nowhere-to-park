@@ -3,18 +3,19 @@ import { S3Source } from './pmtiles-source';
 import './polyfills';
 import { Env } from './types';
 
-// cache PMTiles instances (reused across requests in the same isolate)
-const pmtilesCache = new Map<string, PMTiles>();
+/**
+ * PMTiles client singleton for reuse across warm invocations
+ */
+let pmTilesClient: PMTiles | null = null;
 
-async function getPMTilesInstance(env: Env, key: string): Promise<PMTiles> {
-  if (pmtilesCache.has(key)) {
-    return pmtilesCache.get(key)!;
+function getPMTilesInstance(env: Env): PMTiles {
+  if (pmTilesClient) {
+    return pmTilesClient;
   }
 
-  const source = new S3Source(env, key);
-  const pmtiles = new PMTiles(source);
-  pmtilesCache.set(key, pmtiles);
-  return pmtiles;
+  const source = new S3Source(env, env.PMTILE_FILENAME || 'parking.pmtiles');
+  pmTilesClient = new PMTiles(source);
+  return pmTilesClient;
 }
 
 export default {
@@ -54,11 +55,10 @@ export default {
       const z = parseInt(tileMatch[1], 10);
       const x = parseInt(tileMatch[2], 10);
       const y = parseInt(tileMatch[3], 10);
-      const filename = env.PMTILE_FILENAME || 'parking.pmtiles';
 
       const fetchTile = async (retry = false): Promise<Response> => {
         try {
-          const pmtiles = await getPMTilesInstance(env, filename);
+          const pmtiles = getPMTilesInstance(env);
           const tileResult = await pmtiles.getZxy(z, x, y);
 
           if (!tileResult) {
@@ -84,7 +84,7 @@ export default {
             (err.name === 'PreconditionFailed' || err['$metadata']?.httpStatusCode === 412)
           ) {
             console.warn('PMTiles ETag mismatch, invalidating cache and retrying...');
-            pmtilesCache.delete(filename);
+            pmTilesClient = null;
             return fetchTile(true);
           }
           console.error('Tile Error:', err);
