@@ -1,0 +1,53 @@
+name: Data Pipeline
+
+# recomputes parking.pmtiles from US OSM geofabrik archives (https://www.geofabrik.de/)
+# runs monthly
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+# avoid overlapping runs
+concurrency:
+  group: data-pipeline
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    name: Build PMTiles and upload to S3
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        # US OSM archive ~12 GB; reclaim space defensively
+        uses: jlumbroso/free-disk-space@main
+        with:
+          docker-images: false
+
+      - name: Build pipeline image
+        run: docker build -t ntp-pipeline ./data-pipeline
+
+      - name: Run container
+        run: |
+          mkdir -p "${RUNNER_TEMP}/data"
+          docker run --rm -v "${RUNNER_TEMP}/data:/data" ntp-pipeline
+          ls -lh "${RUNNER_TEMP}/data/parking.pmtiles"
+
+      - name: Upload artifacts
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+        run: |
+          set -euo pipefail
+          DEST="s3://${S3_BUCKET_NAME}/parking.pmtiles"
+          if aws s3 ls "$DEST" >/dev/null 2>&1; then
+            STAMP="$(date -u +%Y-%m-%d)"
+            aws s3 cp "$DEST" "s3://${S3_BUCKET_NAME}/archive/parking-${STAMP}.pmtiles"
+          fi
+          aws s3 cp "${RUNNER_TEMP}/data/parking.pmtiles" "$DEST"
