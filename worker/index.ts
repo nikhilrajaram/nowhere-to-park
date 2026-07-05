@@ -56,7 +56,7 @@ export default {
       const x = parseInt(tileMatch[2], 10);
       const y = parseInt(tileMatch[3], 10);
 
-      const fetchTile = async (retry = false): Promise<Response> => {
+      const fetchTile = async ({ retry = false }: { retry?: boolean } = {}): Promise<Response> => {
         try {
           const pmtiles = getPMTilesInstance(env);
           const tileResult = await pmtiles.getZxy(z, x, y);
@@ -71,21 +71,21 @@ export default {
           if (tileResult.etag) {
             headers.set('ETag', tileResult.etag);
           }
-          headers.set('Cache-Control', 'public, max-age=2592000, immutable'); // Cache tiles for 30 days
+          headers.set('Cache-Control', 'public, max-age=2592000, immutable'); // cache tiles for 30 days
 
           return new Response(tileResult.data, {
             status: 200,
             headers,
           });
         } catch (err: any) {
-          // handle 412 Precondition Failed (ETag mismatch) - File changed on S3
+          // handle 412 Precondition Failed (ETag mismatch) - file changed on S3
           if (
             !retry &&
             (err.name === 'PreconditionFailed' || err['$metadata']?.httpStatusCode === 412)
           ) {
             console.warn('PMTiles ETag mismatch, invalidating cache and retrying...');
             pmTilesClient = null;
-            return fetchTile(true);
+            return fetchTile({ retry: true });
           }
           console.error('Tile Error:', err);
           return new Response('Internal Error', { status: 500, headers: corsHeaders });

@@ -7,7 +7,7 @@
     "dev": "sh scripts/dev.sh",
     "dev:web": "vite",
     "dev:worker": "pnpm --dir worker run dev",
-    "infra:up": "docker compose up -d --wait",
+    "infra:up": "docker compose up -d --wait && docker compose run --rm seed-data",
     "infra:seed": "docker compose run --rm seed-data",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
