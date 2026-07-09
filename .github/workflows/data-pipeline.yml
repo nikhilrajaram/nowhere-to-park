@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build-and-upload:
-    name: Build PMTiles and upload to S3
+    name: Build PMTiles and upload to R2
     runs-on: ubuntu-latest
     environment: prod
     timeout-minutes: 120
@@ -38,16 +38,21 @@ jobs:
           ls -lh "${RUNNER_TEMP}/data/parking.pmtiles"
 
       - name: Upload artifacts
+        # uploads to Cloudflare R2 via its S3-compatible API
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          # R2 rejects the integrity checksums aws-cli >=2.23 sends by default
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2_BUCKET_NAME: nowhere-to-park
         run: |
           set -euo pipefail
-          DEST="s3://${S3_BUCKET_NAME}/parking.pmtiles"
+          DEST="s3://${R2_BUCKET_NAME}/parking.pmtiles"
           if aws s3 ls "$DEST" >/dev/null 2>&1; then
             STAMP="$(date -u +%Y-%m-%d)"
-            aws s3 cp "$DEST" "s3://${S3_BUCKET_NAME}/archive/parking-${STAMP}.pmtiles"
+            aws s3 cp "$DEST" "s3://${R2_BUCKET_NAME}/archive/parking-${STAMP}.pmtiles"
           fi
           aws s3 cp "${RUNNER_TEMP}/data/parking.pmtiles" "$DEST"

@@ -13,9 +13,11 @@ import {
 import { MapContext, STYLE_DARK, STYLE_SATELLITE } from '@/context/MapContext';
 import { useMap } from '@/hooks/useMap';
 import { useIsMobile } from '@/hooks/useMobile';
+import { devMapboxWorkerMonkeypatch } from '@/lib/devMapboxWorkerMonkeypatch';
 import type { City } from '@/types';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+devMapboxWorkerMonkeypatch();
 
 interface MapProps {
   selectedCity: City | null;
@@ -24,8 +26,7 @@ interface MapProps {
 const PMTILES_SOURCE_ID = 'parking-pmtiles';
 const PMTILES_LAYER_ID = 'parking-pmtiles-layer';
 
-const WORKER_URL = import.meta.env.VITE_WORKER_URL.replace(/\/$/, '');
-const MVT_TILES_URL = `${WORKER_URL}/tiles/{z}/{x}/{y}.mvt`;
+const PMTILES_URL = new URL(import.meta.env.VITE_PMTILES_URL, window.location.origin).href;
 
 function MapView({ selectedCity }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -49,9 +50,7 @@ function MapView({ selectedCity }: MapProps) {
       try {
         map.current.addSource(PMTILES_SOURCE_ID, {
           type: 'vector',
-          tiles: [MVT_TILES_URL],
-          minzoom: 0,
-          maxzoom: 13, // data limit (tippecanoe generated up to z13). Mapbox will overzoom beyond this.
+          url: PMTILES_URL,
         });
         console.log('Map: PMTiles source added.');
       } catch (err) {
